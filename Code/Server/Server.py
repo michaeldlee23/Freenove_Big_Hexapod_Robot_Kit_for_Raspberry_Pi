@@ -15,6 +15,8 @@ from ADS7830 import *
 from Ultrasonic import *
 from Command import COMMAND as cmd
 
+TRANSMIT_VIDEO = False
+
 class Server:
     def __init__(self):
         self.tcp_flag=False
@@ -35,31 +37,33 @@ class Server:
         #ip adress
         HOST=self.get_interface_ip()
         #Port 8002 for video transmission
-        self.server_socket = socket.socket()
-        self.server_socket.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEPORT,1)
-        self.server_socket.bind((HOST, 8002))              
-        self.server_socket.listen(1)
-        
+        if TRANSMIT_VIDEO:
+          self.server_socket = socket.socket()
+          self.server_socket.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEPORT,1)
+          self.server_socket.bind((HOST, 8002))
+          self.server_socket.listen(1)
+
         #Port 5002 is used for instruction sending and receiving
         self.server_socket1 = socket.socket()
         self.server_socket1.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEPORT,1)
         self.server_socket1.bind((HOST, 5002))
         self.server_socket1.listen(1)
         print('Server address: '+HOST)
-        
+
     def turn_off_server(self):
         try:
             self.connection.close()
             self.connection1.close()
         except :
             print ('\n'+"No client connection")
-    
+
     def reset_server(self):
         self.turn_off_server()
         self.turn_on_server()
-        self.video=threading.Thread(target=self.transmission_video)
+        if TRANSMIT_VIDEO:
+          self.video=threading.Thread(target=self.transmission_video)
+          self.video.start()
         self.instruction=threading.Thread(target=self.receive_instruction)
-        self.video.start()
         self.instruction.start()
     def send_data(self,connect,data):
         try:
@@ -80,7 +84,7 @@ class Server:
                 camera.framerate = 15               # 15 frames/sec
                 camera.saturation = 80              # Set image video saturation
                 camera.brightness = 50              # Set the brightness of the image (50 indicates the state of white balance)
-                #camera.iso = 400 
+                #camera.iso = 400
                 time.sleep(2)                       # give 2 secs for camera to initilize
                 start = time.time()
                 stream = io.BytesIO()
@@ -103,7 +107,7 @@ class Server:
         except BaseException as e:
             #print(e)
             print ("Camera unintall")
-            
+
     def receive_instruction(self):
         try:
             self.connection1,self.client_address1 = self.server_socket1.accept()
@@ -111,7 +115,7 @@ class Server:
         except:
             print ("Client connect failed")
         self.server_socket1.close()
-        
+
         while True:
             try:
                 allData=self.connection1.recv(1024).decode('utf-8')
@@ -135,7 +139,7 @@ class Server:
                     continue
                 elif cmd.CMD_BUZZER in data:
                     self.buzzer.run(data[1])
-                elif cmd.CMD_POWER in data:  
+                elif cmd.CMD_POWER in data:
                      batteryVoltage=self.adc.batteryPower()
                      command=cmd.CMD_POWER+"#"+str(batteryVoltage[0])+"#"+str(batteryVoltage[1])+"\n"
                      #print(command)
@@ -152,7 +156,7 @@ class Server:
                     except:
                         pass
                     thread_led=threading.Thread(target=self.led.light,args=(data,))
-                    thread_led.start()   
+                    thread_led.start()
                 elif cmd.CMD_LED_MOD in data:
                     try:
                         stop_thread(thread_led)
@@ -187,7 +191,7 @@ class Server:
                         GPIO.output(self.control.GPIO_4,True)
                     else:
                         GPIO.output(self.control.GPIO_4,False)
-                    
+
                 else:
                     self.control.order=data
                     self.control.timeout=time.time()
@@ -203,4 +207,4 @@ class Server:
 
 if __name__ == '__main__':
     pass
-    
+
